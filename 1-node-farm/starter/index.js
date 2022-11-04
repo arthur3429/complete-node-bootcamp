@@ -1,9 +1,14 @@
 // O módulo FS permite interações com o FILE SYSTEM
 const fs = require('fs')
-// const { fstat } = require('fs')
 const http = require('http')
 const url = require('url')
 
+// o slugify troca o ID da url no site por algo mais bonito, tipo o nome do produto ou oque eu quiser botar
+const slugify = require('slugify')
+
+const replaceTemplate = require('./modules/replaceTemplate')
+
+// para iniciar um projeto com node e utilizar os módulos npm, basta chamar NPM INIT no console
 ////////////////////////////////////// 
 // FILES
 
@@ -35,22 +40,7 @@ const url = require('url')
 
 ////////////////////////////////////// 
 // SERvER
-// Essa função vai manipular o conteúdo do JSON e substituir os placeholders do nosso template pelo conteúdo do JSON
-const replaceTemplate = (temp, product) => {
-    let output = temp.replace(/{%PRODUCTNAME%}/g, product.productName)
-    // Manipulando OUTPUT ao invés de TEMP pois manipular o argumento da função não é uma boa prática
-    output = output.replace(/{%IMAGE%}/g, product.image)
-    output = output.replace(/{%PRICE%}/g, product.price)
-    output = output.replace(/{%FROM%}/g, product.from)
-    output = output.replace(/{%NUTRIENTS%}/g, product.nutrients)
-    output = output.replace(/{%QUANTITY%}/g, product.quantity)
-    output = output.replace(/{%DESCRIPTION%}/g, product.description)
-    output = output.replace(/{%ID%}/g, product.id)
 
-
-    if(!product.organic) output = output.replace(/{%NOT_ORGANIC%}/g, 'not-organic')
-    return output
-}
 // Templates, carregar eles sincronamente para não ter que ficar recarregando toda vez que fizer uma requisição
 const tempOverview = fs.readFileSync(`${__dirname}/templates/template-overview.html`, 'utf-8')
 const tempProduct = fs.readFileSync(`${__dirname}/templates/template-product.html`, 'utf-8')
@@ -58,13 +48,19 @@ const tempCard = fs.readFileSync(`${__dirname}/templates/template-card.html`, 'u
 
 const data = fs.readFileSync(`${__dirname}/dev-data/data.json`, 'utf-8')
 const dataObj = JSON.parse(data)
-   
 
+
+const slugs = dataObj.map(el => slugify(el.productName, {lower: true}))
+// console.log(slugs)
 
 const server = http.createServer((req, res) => {
-    const pathName = req.url
+    // console.log(req.url) //Para pegar os parâmetros da request da url em que estou tentando acessar
+    // console.log(url.parse(req.url, true)) //Parse pega a URL e transforma num OBJETO com vários parâmetros da URL, usarei isso para pegar a QUERY (que é o ID) e o pathname (Que é o que vem entre o localhost e o id, no caso pathname aqui seria 'product')
+
+    const {query, pathname} = url.parse(req.url, true) //Aqui eu criei duas váriaveis desustruturando o objeto criado com o parse, essas váriaveis já tem valores dentro do objeto e eu posso simplesmente usar esses valores individualmente
+
 // OVERVIEW
-    if(pathName === '/' || pathName === '/overview') {
+    if(pathname === '/' || pathname === '/overview') {
         res.writeHead(200, {'Content-type': 'text/html'})
 
         const cardsHtml = dataObj.map(el => replaceTemplate(tempCard, el)).join('')
@@ -74,11 +70,15 @@ const server = http.createServer((req, res) => {
         res.end(output)
 
 // PRODUCT PAGE
-    } else if (pathName ==='/product') {
-        res.end('Product')
+    } else if (pathname ==='/product') {
+        res.writeHead(200, {'Content-type': 'text/html'})
+        const product = dataObj[query.id]
+        const output = replaceTemplate(tempProduct, product)
+
+        res.end(output)
         
 // API
-    } else if (pathName ==='/api') {
+    } else if (pathname ==='/api') {
         res.writeHead(200, {'Content-type': 'application/json'})
         res.end(data)
 
